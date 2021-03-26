@@ -1,16 +1,14 @@
 package commands
 
 import (
-	"fmt"
 	"io/ioutil"
-	"log"
 	"strings"
 )
 
-func Ls(dirName string, showHidden bool) {
+func Ls(dirName string, showHidden bool) ([]string, error) {
 	files, err := ioutil.ReadDir(dirName)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	dirs := []string{}
@@ -29,7 +27,5 @@ func Ls(dirName string, showHidden bool) {
 	}
 	dirs = append(dirs, dirFiles...)
 
-	for _, file := range dirs {
-		fmt.Println(file)
-	}
+	return dirs, err
 }
