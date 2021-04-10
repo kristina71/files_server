@@ -19,6 +19,8 @@ func New() *Dir {
 
 func (currentDir *Dir) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
+	case "/rm":
+		currentDir.rm(w, r)
 	case "/mkdir":
 		currentDir.mkdir(w, r)
 	case "/touch":
@@ -122,3 +124,24 @@ func (currentDir *Dir) touch(w http.ResponseWriter, r *http.Request) {
 	file.Close()
 }
 
+func (currentDir *Dir) rm(w http.ResponseWriter, r *http.Request) {
+	fileName := r.URL.Query().Get("filename")
+	if fileName == "" {
+		http.Error(w, "No filename", http.StatusBadRequest)
+		return
+	}
+
+	if !strings.HasPrefix(fileName, "/") {
+		fileName = filepath.Join(currentDir.path, fileName)
+	}
+
+	if fileName == "/" {
+		http.Error(w, "Can't delete root directory", http.StatusBadRequest)
+		return
+	}
+
+	err := os.RemoveAll(fileName)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
