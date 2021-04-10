@@ -21,6 +21,8 @@ func (currentDir *Dir) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/mkdir":
 		currentDir.mkdir(w, r)
+	case "/touch":
+		currentDir.touch(w, r)
 	case "/pwd":
 		currentDir.pwd(w)
 	case "/ls":
@@ -92,3 +94,31 @@ func (currentDir *Dir) mkdir(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
+
+func (currentDir *Dir) touch(w http.ResponseWriter, r *http.Request) {
+	fileName := r.URL.Query().Get("filename")
+	if fileName == "" {
+		http.Error(w, "No filename", http.StatusBadRequest)
+		return
+	}
+
+	if !strings.HasPrefix(fileName, "/") {
+		fileName = filepath.Join(currentDir.path, fileName)
+	}
+
+	_, err := os.Stat(fileName)
+	if !os.IsNotExist(err) {
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	file, err := os.Create(fileName)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	file.Close()
+}
+
