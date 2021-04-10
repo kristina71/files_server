@@ -3,7 +3,6 @@ package dir
 import (
 	"encoding/json"
 	"files_server/commands"
-	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -19,9 +18,9 @@ func New() *Dir {
 }
 
 func (currentDir *Dir) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(r.RequestURI)
-
 	switch r.URL.Path {
+	case "/mkdir":
+		currentDir.mkdir(w, r)
 	case "/pwd":
 		currentDir.pwd(w)
 	case "/ls":
@@ -71,4 +70,25 @@ func (currentDir *Dir) ls(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 	w.Write(res)
+}
+
+func (currentDir *Dir) mkdir(w http.ResponseWriter, r *http.Request) {
+	dirName := r.URL.Query().Get("dirname")
+	if dirName == "" {
+		http.Error(w, "No dirname", http.StatusBadRequest)
+		return
+	}
+
+	if !strings.HasPrefix(dirName, "/") {
+		dirName = filepath.Join(currentDir.path, dirName)
+	}
+
+	if dirName == "/" {
+		return
+	}
+
+	err := os.MkdirAll(dirName, os.ModePerm)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
