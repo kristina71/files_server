@@ -331,3 +331,96 @@ func TestMkDir(t *testing.T) {
 		)
 	}
 }
+
+func TestTouch(t *testing.T) {
+	testCases := []testCase{
+		{
+			name:    "Create file",
+			dirname: "dir.txt",
+			prepare: func(t *testing.T, tc *testCase) {
+				tc.expected_result = http.StatusOK
+				tc.expectations = []expectation{
+					{
+						path:         tc.path,
+						expected_dir: "[\"dir.txt\"]",
+					},
+				}
+			},
+		},
+		{
+			name:    "Empty file",
+			dirname: "",
+			prepare: func(t *testing.T, tc *testCase) {
+				tc.expected_result = http.StatusBadRequest
+				tc.expectations = []expectation{
+					{
+						path:         tc.path,
+						expected_dir: "[]",
+					},
+				}
+			},
+		},
+		{
+			name: "Absolute file",
+			prepare: func(t *testing.T, tc *testCase) {
+				tc.dirname = filepath.Join(tc.path, "abs_file.txt")
+				tc.expected_result = http.StatusOK
+				tc.expectations = []expectation{
+					{
+						path:         tc.path,
+						expected_dir: "[\"abs_file.txt\"]",
+					},
+				}
+			},
+		},
+		{
+			name:    ". file",
+			dirname: "./file.txt",
+			prepare: func(t *testing.T, tc *testCase) {
+				tc.expected_result = http.StatusOK
+				tc.expectations = []expectation{
+					{
+						path:         tc.path,
+						expected_dir: "[\"file.txt\"]",
+					},
+				}
+			},
+		},
+		{
+			name:    "../file",
+			dirname: "../file.txt",
+			prepare: func(t *testing.T, tc *testCase) {
+				tc.expected_result = http.StatusOK
+				tc.expectations = []expectation{
+					{
+						path:         tc.path,
+						expected_dir: "[]",
+					},
+				}
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(
+			testCase.name, func(t *testing.T) {
+				testCase.init(t)
+				defer testCase.close(t)
+				for _, expectation := range testCase.expectations {
+					resp, err := testCase.testServer.Client().Get(testCase.testServer.URL + "/touch?filename=" + testCase.dirname)
+					require.NoError(t, err)
+					resp.Body.Close()
+
+					require.Equal(t, testCase.expected_result, resp.StatusCode)
+
+					resp, err = testCase.testServer.Client().Get(testCase.testServer.URL + "/ls")
+					require.NoError(t, err)
+					b, err := ioutil.ReadAll(resp.Body)
+					resp.Body.Close()
+					require.NoError(t, err)
+					require.Equal(t, expectation.expected_dir, string(b))
+				}
+			},
+		)
+	}
+}
