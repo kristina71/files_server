@@ -12,6 +12,44 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func initTestEnv(t *testing.T) (string, *httptest.Server) {
+	testServer := httptest.NewServer(dir.New())
+
+	dir, err := os.MkdirTemp(os.TempDir(), "example")
+	require.NoError(t, err)
+
+	_, err = testServer.Client().Get(testServer.URL + "/cd?dir=" + dir)
+	require.NoError(t, err)
+	return dir, testServer
+}
+
+type expectation struct {
+	path         string
+	expected_dir string
+}
+
+type testCase struct {
+	name            string
+	path            string
+	testServer      *httptest.Server
+	dirname         string
+	expected_result int
+	expectations    []expectation
+	prepare         func(t *testing.T, tc *testCase)
+}
+
+func (tc *testCase) init(t *testing.T) {
+	tc.path, tc.testServer = initTestEnv(t)
+	if tc.prepare != nil {
+		tc.prepare(t, tc)
+	}
+}
+
+func (tc *testCase) close(t *testing.T) {
+	tc.testServer.Close()
+	os.RemoveAll(tc.path)
+}
+
 func TestPwd(t *testing.T) {
 	testServer := httptest.NewServer(dir.New())
 	defer testServer.Close()
@@ -78,7 +116,6 @@ func TestCd(t *testing.T) {
 	checkPwd(testServer, t, dir)
 }
 
-//написать тест на GET ls
 func TestLs(t *testing.T) {
 	testServer := httptest.NewServer(dir.New())
 	defer testServer.Close()
