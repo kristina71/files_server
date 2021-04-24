@@ -424,3 +424,129 @@ func TestTouch(t *testing.T) {
 		)
 	}
 }
+
+func TestRm(t *testing.T) {
+	testCases := []testCase{
+		{
+			name:    "Remove file",
+			dirname: "dir.txt",
+			prepare: func(t *testing.T, tc *testCase) {
+				resp, err := tc.testServer.Client().Get(tc.testServer.URL + "/touch?filename=" + tc.dirname)
+				require.NoError(t, err)
+				resp.Body.Close()
+				tc.expected_result = http.StatusOK
+				tc.expectations = []expectation{
+					{
+						path:         tc.path,
+						expected_dir: "[]",
+					},
+				}
+			},
+		},
+		{
+			name:    "Remove empty file",
+			dirname: "",
+			prepare: func(t *testing.T, tc *testCase) {
+				resp, err := tc.testServer.Client().Get(tc.testServer.URL + "/touch?filename=" + tc.dirname)
+				require.NoError(t, err)
+				resp.Body.Close()
+				tc.expected_result = http.StatusBadRequest
+				tc.expectations = []expectation{
+					{
+						path:         tc.path,
+						expected_dir: "[]",
+					},
+				}
+			},
+		},
+		{
+			name:    "Remove / file",
+			dirname: "/",
+			prepare: func(t *testing.T, tc *testCase) {
+				resp, err := tc.testServer.Client().Get(tc.testServer.URL + "/touch?filename=" + tc.dirname)
+				require.NoError(t, err)
+				resp.Body.Close()
+				tc.expected_result = http.StatusBadRequest
+				tc.expectations = []expectation{
+					{
+						path:         tc.path,
+						expected_dir: "[]",
+					},
+				}
+			},
+		},
+		{
+			name: "Remove file by absolute path",
+			prepare: func(t *testing.T, tc *testCase) {
+				resp, err := tc.testServer.Client().Get(tc.testServer.URL + "/touch?filename=file.txt")
+				require.NoError(t, err)
+				resp.Body.Close()
+				tc.dirname = filepath.Join(tc.path, "file.txt")
+				tc.expected_result = http.StatusOK
+				tc.expectations = []expectation{
+					{
+						path:         tc.path,
+						expected_dir: "[]",
+					},
+				}
+			},
+		},
+		{
+			name:    "Recursive remove files",
+			dirname: "dir",
+			prepare: func(t *testing.T, tc *testCase) {
+				resp, err := tc.testServer.Client().Get(tc.testServer.URL + "/mkdir?dirname=dir/dir1")
+				require.NoError(t, err)
+				resp.Body.Close()
+				require.Equal(t, resp.StatusCode, http.StatusOK)
+
+				resp, err = tc.testServer.Client().Get(tc.testServer.URL + "/cd?dir=dir/dir1")
+				require.NoError(t, err)
+				resp.Body.Close()
+				require.Equal(t, resp.StatusCode, http.StatusOK)
+
+				resp, err = tc.testServer.Client().Get(tc.testServer.URL + "/touch?filename=dir.txt")
+				require.NoError(t, err)
+				resp.Body.Close()
+				require.Equal(t, resp.StatusCode, http.StatusOK)
+
+				resp, err = tc.testServer.Client().Get(tc.testServer.URL + "/cd?dir=" + tc.path)
+				require.NoError(t, err)
+				resp.Body.Close()
+				require.Equal(t, resp.StatusCode, http.StatusOK)
+
+				tc.expected_result = http.StatusOK
+				tc.expectations = []expectation{
+					{
+						path:         tc.path,
+						expected_dir: "[]",
+					},
+				}
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(
+			testCase.name, func(t *testing.T) {
+				testCase.init(t)
+				defer testCase.close(t)
+				for _, expectation := range testCase.expectations {
+
+					resp, err := testCase.testServer.Client().Get(testCase.testServer.URL + "/rm?filename=" + testCase.dirname)
+					require.NoError(t, err)
+					resp.Body.Close()
+
+					require.Equal(t, testCase.expected_result, resp.StatusCode)
+
+					resp, err = testCase.testServer.Client().Get(testCase.testServer.URL + "/ls")
+					require.NoError(t, err)
+					b, err := ioutil.ReadAll(resp.Body)
+					resp.Body.Close()
+					require.NoError(t, err)
+					require.Equal(t, expectation.expected_dir, string(b))
+				}
+			},
+		)
+	}
+}
