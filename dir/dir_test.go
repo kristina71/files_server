@@ -196,3 +196,138 @@ func TestLs(t *testing.T) {
 		)
 	}
 }
+
+func TestMkDir(t *testing.T) {
+	testCases := []testCase{
+		{
+			name:    "Create directory",
+			dirname: "dir",
+			prepare: func(t *testing.T, tc *testCase) {
+				tc.expected_result = http.StatusOK
+				tc.expectations = []expectation{
+					{
+						path:         tc.path,
+						expected_dir: "[\"dir\"]",
+					},
+				}
+			},
+		},
+		{
+			name:    "Create recursive directory",
+			dirname: "dir/dir1/dir2",
+			prepare: func(t *testing.T, tc *testCase) {
+				tc.expected_result = http.StatusOK
+				tc.expectations = []expectation{
+					{
+						path:         tc.path,
+						expected_dir: "[\"dir\"]",
+					},
+					{
+						path:         filepath.Join(tc.path, "dir"),
+						expected_dir: "[\"dir1\"]",
+					},
+					{
+						path:         filepath.Join(filepath.Join(tc.path, "dir"), "dir1"),
+						expected_dir: "[\"dir2\"]",
+					},
+				}
+			},
+		},
+		{
+			name:    "Empty directory",
+			dirname: "",
+			prepare: func(t *testing.T, tc *testCase) {
+				tc.expected_result = http.StatusBadRequest
+				tc.expectations = []expectation{
+					{
+						path:         tc.path,
+						expected_dir: "[]",
+					},
+				}
+			},
+		},
+		{
+			name:    "Create file-directory",
+			dirname: "dir.txt",
+			prepare: func(t *testing.T, tc *testCase) {
+				tc.expected_result = http.StatusOK
+				tc.expectations = []expectation{
+					{
+						path:         tc.path,
+						expected_dir: "[\"dir.txt\"]",
+					},
+				}
+			},
+		},
+		{
+			name:            "Absolute directory",
+			expected_result: http.StatusOK,
+			prepare: func(t *testing.T, tc *testCase) {
+				tc.dirname = filepath.Join(tc.path, "abs_dir")
+				tc.expected_result = http.StatusOK
+				tc.expectations = []expectation{
+					{
+						path:         tc.path,
+						expected_dir: "[\"abs_dir\"]",
+					},
+				}
+			},
+		},
+		{
+			name:    ". directory",
+			dirname: "./dir",
+			prepare: func(t *testing.T, tc *testCase) {
+				tc.expected_result = http.StatusOK
+				tc.expectations = []expectation{
+					{
+						path:         tc.path,
+						expected_dir: "[\"dir\"]",
+					},
+				}
+			},
+		},
+		{
+			name:    ".. directory",
+			dirname: "../dir5",
+			prepare: func(t *testing.T, tc *testCase) {
+				tc.testServer.Client().Get(tc.testServer.URL + "/mkdir?dirname=dir1")
+				tc.testServer.Client().Get(tc.testServer.URL + "/cd?dir=dir1")
+				tc.expected_result = http.StatusOK
+				tc.expectations = []expectation{
+					{
+						path:         tc.path,
+						expected_dir: "[\"dir1\",\"dir5\"]",
+					},
+				}
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(
+			testCase.name, func(t *testing.T) {
+				testCase.init(t)
+				defer testCase.close(t)
+				resp, err := testCase.testServer.Client().Get(testCase.testServer.URL + "/mkdir?dirname=" + testCase.dirname)
+				require.NoError(t, err)
+				resp.Body.Close()
+				require.Equal(t, testCase.expected_result, resp.StatusCode)
+
+				for _, expectation := range testCase.expectations {
+					resp, err = testCase.testServer.Client().Get(testCase.testServer.URL + "/cd?dir=" + expectation.path)
+					require.NoError(t, err)
+					resp.Body.Close()
+					require.Equal(t, http.StatusOK, resp.StatusCode)
+
+					resp1, err := testCase.testServer.Client().Get(testCase.testServer.URL + "/ls")
+					require.NoError(t, err)
+					b1, err := ioutil.ReadAll(resp1.Body)
+					resp1.Body.Close()
+					require.NoError(t, err)
+
+					require.Equal(t, expectation.expected_dir, string(b1))
+				}
+			},
+		)
+	}
+}
